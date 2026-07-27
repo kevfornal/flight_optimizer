@@ -1,0 +1,72 @@
+name: Flight Search Optimizer Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      origin:
+        description: 'Origin Airport Code (e.g. IAD)'
+        required: true
+        default: 'IAD'
+      destination:
+        description: 'Destination Airport Code (e.g. SEZ)'
+        required: true
+        default: 'SEZ'
+      start_date:
+        description: 'Start Date (YYYY-MM-DD)'
+        required: true
+        default: '2026-06-01'
+      end_date:
+        description: 'End Date (YYYY-MM-DD)'
+        required: true
+        default: '2026-08-01'
+      min_stay:
+        description: 'Minimum Stay (Nights)'
+        required: true
+        default: '7'
+      max_stay:
+        description: 'Maximum Stay (Nights)'
+        required: true
+        default: '10'
+      max_connections:
+        description: 'Stops (0 = Non-stop, 1 = Max 1-stop)'
+        required: true
+        default: '1'
+
+jobs:
+  run-search:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Execute Flight Search Script
+        env:
+          DUFFEL_TOKEN: ${{ secrets.DUFFEL_TOKEN }}
+          ORIGIN: ${{ github.event.inputs.origin }}
+          DESTINATION: ${{ github.event.inputs.destination }}
+          START_DATE: ${{ github.event.inputs.start_date }}
+          END_DATE: ${{ github.event.inputs.end_date }}
+          MIN_STAY: ${{ github.event.inputs.min_stay }}
+          MAX_STAY: ${{ github.event.inputs.max_stay }}
+          MAX_CONNECTIONS: ${{ github.event.inputs.max_connections }}
+        run: python flight_searcher.py
+
+      - name: Push results to Repository
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add results.json
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update flight results [skip ci]" && git push)
