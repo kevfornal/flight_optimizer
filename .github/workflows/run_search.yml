@@ -14,11 +14,11 @@ on:
       start_date:
         description: 'Start Date (YYYY-MM-DD)'
         required: true
-        default: '2026-06-01'
+        default: ''
       end_date:
         description: 'End Date (YYYY-MM-DD)'
         required: true
-        default: '2026-08-01'
+        default: ''
       min_stay:
         description: 'Minimum Stay (Nights)'
         required: true
