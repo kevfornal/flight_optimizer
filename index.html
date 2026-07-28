@@ -165,7 +165,9 @@
               document.getElementById('last_updated').innerText = "No flight search results found yet. Run a search to generate results.";
           }
       }
-
+    // Run as soon as the page loads
+   document.addEventListener('DOMContentLoaded', () => {
+    
       loadResults();
     </script>
 </body>
