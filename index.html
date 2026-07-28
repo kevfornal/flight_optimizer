@@ -138,37 +138,62 @@
       }
 
       async function loadResults() {
-          try {
-              const res = await fetch('results.json?cache_bust=' + Date.now());
-              const data = await res.json();
-              
-              document.getElementById('last_updated').innerText = `Last Updated: ${data.last_updated} (${data.params.origin} -> ${data.params.destination})`;
-              
-              const tbody = document.querySelector('#results_table tbody');
-              tbody.innerHTML = '';
+    // Target the correct element containing "Loading flight matrix..."
+    const updatedEl = document.getElementById('last_updated');
+    const tbody = document.querySelector('#results_table tbody');
 
-              data.offers.forEach(item => {
-                  const tr = document.createElement('tr');
-                  const stopClass = item.stops === 'Non-stop' ? 'non-stop' : 'one-stop';
-                  
-                  tr.innerHTML = `
-                      <td><strong>$${item.price.toFixed(2)} ${item.currency}</strong></td>
-                      <td>${item.outbound}</td>
-                      <td>${item.inbound}</td>
-                      <td>${item.nights}</td>
-                      <td><span class="tag ${stopClass}">${item.stops}</span></td>
-                      <td>${item.airline}</td>
-                  `;
-                  tbody.appendChild(tr);
-              });
-          } catch(e) {
-              document.getElementById('last_updated').innerText = "No flight search results found yet. Run a search to generate results.";
-          }
-      }
-    // Run as soon as the page loads
-   document.addEventListener('DOMContentLoaded', () => {
-    
-      loadResults();
-    </script>
+    try {
+        // Fetch results with timestamp to bypass browser cache
+        const res = await fetch('./results.json?v=' + Date.now());
+        
+        if (!res.ok) {
+            if (updatedEl) updatedEl.innerText = "No search results generated yet. Run a search to populate the matrix.";
+            return;
+        }
+
+        const data = await res.json();
+
+        // Handle case where search ran but returned 0 flight offers
+        if (!data.offers || data.offers.length === 0) {
+            if (updatedEl) updatedEl.innerText = `Last Search: ${data.last_updated} — No flights found. Try increasing Max Connections.`;
+            if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No offers returned for these parameters.</td></tr>';
+            return;
+        }
+
+        // Update header text with last updated date and route params
+        if (updatedEl) {
+            updatedEl.innerText = `Last Updated: ${data.last_updated} (${data.params.origin} ➔ ${data.params.destination})`;
+        }
+
+        // Render flight matrix rows
+        if (tbody) {
+            tbody.innerHTML = '';
+            data.offers.forEach(item => {
+                const tr = document.createElement('tr');
+                const stopClass = item.stops === 'Non-stop' ? 'non-stop' : 'one-stop';
+                
+                tr.innerHTML = `
+                    <td><strong>$${Number(item.price).toFixed(2)} ${item.currency || 'USD'}</strong></td>
+                    <td>${item.outbound}</td>
+                    <td>${item.inbound}</td>
+                    <td>${item.nights}</td>
+                    <td><span class="tag ${stopClass}">${item.stops}</span></td>
+                    <td>${item.airline}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    } catch (e) {
+        console.error("Load Error:", e);
+        if (updatedEl) updatedEl.innerText = "Ready to run search.";
+    }
+}
+
+// Make sure loadResults runs automatically on load
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadResults);
+} else {
+    loadResults();
+}    </script>
 </body>
 </html>
