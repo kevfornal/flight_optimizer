@@ -50,26 +50,24 @@ passengers_list = [
 ]
 for outbound_date, return_date, nights in date_pairs:
     try:
-        offer_request = client.offer_requests.create(
-            slices=[
+        # Use Duffel SDK's builder pattern
+        offer_request = (
+            client.offer_requests.create()
+            .slices([
                 {
                     "origin": origin,
                     "destination": destination,
-                    "departure_date": outbound_date
+                    "departure_date": outbound_date,
                 },
                 {
                     "origin": destination,
                     "destination": origin,
-                    "departure_date": return_date
-                }
-            ],
-        #    passengers=[
-		#{
-		#	"type": "adult", "type": "adult",
-		#	"type": "child", "type": "child"
-		#}
-	    #],
-            cabin_class="economy"
+                    "departure_date": return_date,
+                },
+            ])
+            .passengers(passengers_list)
+            .cabin_class("economy")
+            .execute()
         )
 
         for offer in offer_request.offers:
@@ -89,8 +87,7 @@ for outbound_date, return_date, nights in date_pairs:
                     "airline": airline_name
                 })
 
-        # Small delay to keep from exceeding API rate limits on big ranges
-        time.sleep(0.1)
+        time.sleep(0.15)
 
     except Exception as e:
         print(f"Error for {outbound_date} to {return_date} ({nights} nights): {e}")
