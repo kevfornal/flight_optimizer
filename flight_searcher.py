@@ -1,10 +1,10 @@
 import os
 import json
 import time
+import requests
 from datetime import datetime, timedelta
-from duffel_api import Duffel
 
-# 1. Fetch Environment Variables passed from GitHub Actions
+# 1. Load Environment Variables from GitHub Actions
 DUFFEL_TOKEN = os.environ.get("DUFFEL_TOKEN")
 origin = os.environ.get("ORIGIN", "IAD")
 destination = os.environ.get("DESTINATION", "SEZ")
@@ -12,19 +12,20 @@ start_date_str = os.environ.get("START_DATE", "2026-09-01")
 end_date_str = os.environ.get("END_DATE", "2026-11-01")
 min_stay = int(os.environ.get("MIN_STAY", "7"))
 max_stay = int(os.environ.get("MAX_STAY", "10"))
-max_connections = int(os.environ.get("MAX_CONNECTIONS", "1"))
+max_connections = int(os.environ.get("MAX_CONNECTIONS", "2"))
 
 if not DUFFEL_TOKEN:
     raise ValueError("DUFFEL_TOKEN environment variable is missing!")
 
-# 2. Initialize Duffel API Client
-# Initialize Duffel API Client with explicit latest version header
-client = Duffel(
-    access_token=DUFFEL_TOKEN,
-    headers={"Duffel-Version": "v2"}
-)
+# 2. Setup Direct API Request Headers (Specifying Duffel API v2)
+headers = {
+    "Authorization": f"Bearer {DUFFEL_TOKEN}",
+    "Duffel-Version": "v2",
+    "Content-Type": "application/json",
+    "Accept": "application/json"
+}
 
-# 3. Generate Date Ranges
+# 3. Generate Search Date Combinations
 start_dt = datetime.strptime(start_date_str, "%Y-%m-%d")
 end_dt = datetime.strptime(end_date_str, "%Y-%m-%d")
 
@@ -43,60 +44,72 @@ while curr <= end_dt:
 
 print(f"Generated {len(date_pairs)} date combinations to query.")
 
-# 4. Loop Through Flight Searches
-all_offers = []
-
-passengers_list = [
+# 4. Define Passenger Payload (Duffel requires 'age' for 'child')
+passengers_payload = [
     {"type": "adult"},
     {"type": "adult"},
-    {"type": "child", "age": 4},
-    {"type": "child", "age": 6}
+    {"type": "child", "age": 8},
+    {"type": "child", "age": 10}
 ]
+
+all_offers = []
+url = "https://api.duffel.com/air/offer_requests"
+
+# 5. Query Duffel REST Endpoint Directly
 for outbound_date, return_date, nights in date_pairs:
-    try:
-        # Use Duffel SDK's builder pattern
-        offer_request = (
-            client.offer_requests.create()
-            .slices([
+    payload = {
+        "data": {
+            "slices": [
                 {
                     "origin": origin,
                     "destination": destination,
-                    "departure_date": outbound_date,
+                    "departure_date": outbound_date
                 },
                 {
                     "origin": destination,
                     "destination": origin,
-                    "departure_date": return_date,
-                },
-            ])
-            .passengers(passengers_list)
-            .cabin_class("economy")
-            .execute()
-        )
+                    "departure_date": return_date
+                }
+            ],
+            "passengers": passengers_payload,
+            "cabin_class": "economy"
+        }
+    }
 
-        for offer in offer_request.offers:
-            # Calculate highest number of stops across all flight legs
-            max_stops = max(len(slice_item.segments) - 1 for slice_item in offer.slices)
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        
+        if response.status_code == 201:
+            data = response.json().get("data", {})
+            offers = data.get("offers", [])
             
-            if max_stops <= max_connections:
-                airline_name = offer.owner.name if offer.owner else "Multiple Airlines"
+            for offer in offers:
+                # Determine max connections across outbound and inbound legs
+                max_stops = max(len(slice_item.get("segments", [])) - 1 for slice_item in offer.get("slices", []))
                 
-                all_offers.append({
-                    "price": float(offer.total_amount),
-                    "currency": offer.total_currency,
-                    "outbound": outbound_date,
-                    "inbound": return_date,
-                    "nights": nights,
-                    "stops": "Non-stop" if max_stops == 0 else f"{max_stops}-stop",
-                    "airline": airline_name
-                })
+                if max_stops <= max_connections:
+                    owner = offer.get("owner", {})
+                    airline_name = owner.get("name") if owner else "Multiple Airlines"
+                    
+                    all_offers.append({
+                        "price": float(offer.get("total_amount", 0)),
+                        "currency": offer.get("total_currency", "USD"),
+                        "outbound": outbound_date,
+                        "inbound": return_date,
+                        "nights": nights,
+                        "stops": "Non-stop" if max_stops == 0 else f"{max_stops}-stop",
+                        "airline": airline_name
+                    })
+        else:
+            print(f"Duffel API Error {response.status_code} for {outbound_date}: {response.text}")
 
+        # Sleep briefly to avoid hitting Duffel's request rate limit
         time.sleep(0.15)
 
     except Exception as e:
-        print(f"Error for {outbound_date} to {return_date} ({nights} nights): {e}")
+        print(f"Request failed for {outbound_date} to {return_date}: {e}")
 
-# 5. Sort Offers & Export to results.json
+# 6. Sort & Write Results
 all_offers.sort(key=lambda x: x["price"])
 
 output_data = {
@@ -113,4 +126,4 @@ output_data = {
 with open("results.json", "w") as f:
     json.dump(output_data, f, indent=2)
 
-print(f"Search complete! Saved {len(all_offers)} offers to results.json.")
+print(f"Done! Successfully processed and saved {len(all_offers)} offers to results.json.")
