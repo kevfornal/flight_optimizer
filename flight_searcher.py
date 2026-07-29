@@ -1,4 +1,3 @@
-New Searcher
 import os
 import json
 import time
