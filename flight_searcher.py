@@ -33,16 +33,17 @@ def search_flights():
             
             try:
                 # Duffel API supports max_connections parameter directly!
-                offer_req = client.offer_requests.create().choices(
+                offer_request = duffel.offer_requests.create(
                     slice=[
-                        {"origin": ORIGIN, "destination": DESTINATION, "departure_date": depart_date.isoformat()},
-                        {"origin": DESTINATION, "destination": ORIGIN, "departure_date": ret_date.isoformat()}
+                        {"origin": origin, "destination": destination, "outbound_date": depart_date.isoformat()},
+                        {"origin": destination, "destination": origin, "return_date": ret_date.isoformat()}
                     ],
-                    passengers=passengers,
-                    cabin_class="economy",
                     max_connections=MAX_CONNECTIONS # Filter out multi-stop connections
                 ).execute()
 
+                # Access offers directly from the returned OfferRequest object:
+                offers = offer_request.offers
+                
                 if offer_req.offers:
                     # Sort offers prioritizing non-stop (0 stops) first, then price
                     sorted_offers = sorted(
