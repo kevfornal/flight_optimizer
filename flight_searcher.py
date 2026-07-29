@@ -43,6 +43,12 @@ print(f"Generated {len(date_pairs)} date combinations to query.")
 # 4. Loop Through Flight Searches
 all_offers = []
 
+passengers_list = [
+    {"type": "adult"},
+    {"type": "adult"},
+    {"type": "child", "age": 4},
+    {"type": "child", "age": 6}
+]
 for outbound_date, return_date, nights in date_pairs:
     try:
         offer_request = client.offer_requests.create(
@@ -58,12 +64,12 @@ for outbound_date, return_date, nights in date_pairs:
                     "departure_date": return_date
                 }
             ],
-            passengers=[
-		{
-			"type": "adult", "type": "adult",
-			"type": "child", "type": "child"
-		}
-	    ],
+        #    passengers=[
+		#{
+		#	"type": "adult", "type": "adult",
+		#	"type": "child", "type": "child"
+		#}
+	    #],
             cabin_class="economy"
         )
 
