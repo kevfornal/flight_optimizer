@@ -15,6 +15,11 @@ MAX_STAY = int(os.environ.get("MAX_STAY", 10))
 # 0 = Direct/Non-stop only, 1 = Up to 1-stop, 2 = Up to 2-stops
 MAX_CONNECTIONS = int(os.environ.get("MAX_CONNECTIONS", 1)) 
 
+# Fetch API token from environment variable
+if not DUFFEL_TOKEN:
+    raise ValueError("DUFFEL_TOKEN environment variable is not set!")
+
+# Initialize the Duffel API client instance
 client = Duffel(access_token=DUFFEL_TOKEN)
 
 def get_daterange(start, end):
@@ -33,8 +38,9 @@ def search_flights():
             
             try:
                 # Duffel API supports max_connections parameter directly!
-                offer_request = duffel.offer_requests.create(
-                    slice=[
+                offer_request = client.offer_requests.create(
+                # offer_request = duffel.offer_requests.create(
+                    slices=[
                         {"origin": origin, "destination": destination, "outbound_date": depart_date.isoformat()},
                         {"origin": destination, "destination": origin, "return_date": ret_date.isoformat()}
                     ],
@@ -73,17 +79,33 @@ def search_flights():
             except Exception as e:
                 print(f"Error for {depart_date} ({nights} nights): {e}")
 
+
+    # Sort offers by lowest price
+
+
+output_data = {
+    "last_updated": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+    "params": {
+        "origin": origin,
+        "destination": destination,
+        "start_date": start_date,
+        "end_date": end_date
+    },
+    "offers": all_offers
+}
+
     # Sort final dataset by price
-    sorted_results = sorted(results, key=lambda x: x["price"])
+    # sorted_results = sorted(results, key=lambda x: x["price"])
+    all_offers.sort(key=lambda x: x["price"])
 
     # Export output data for the frontend to render
     output_data = {
         "last_updated": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
         "params": {
-            "origin": ORIGIN,
-            "destination": DESTINATION,
-            "start": START_SEARCH.isoformat(),
-            "end": END_SEARCH.isoformat(),
+            "origin": origin,
+            "destination": destination,
+            "start": start_date.isoformat(),
+            "end": end_date.isoformat(),
             "min_stay": MIN_STAY,
             "max_stay": MAX_STAY
         },
@@ -92,6 +114,8 @@ def search_flights():
 
     with open("results.json", "w") as f:
         json.dump(output_data, f, indent=2)
-
+        
+    print(f"Successfully processed search. Found {len(all_offers)} matching offers.")
+    
 if __name__ == "__main__":
     search_flights()
