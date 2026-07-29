@@ -18,7 +18,11 @@ if not DUFFEL_TOKEN:
     raise ValueError("DUFFEL_TOKEN environment variable is missing!")
 
 # 2. Initialize Duffel API Client
-client = Duffel(access_token=DUFFEL_TOKEN)
+# Initialize Duffel API Client with explicit latest version header
+client = Duffel(
+    access_token=DUFFEL_TOKEN,
+    headers={"Duffel-Version": "v2"}
+)
 
 # 3. Generate Date Ranges
 start_dt = datetime.strptime(start_date_str, "%Y-%m-%d")
