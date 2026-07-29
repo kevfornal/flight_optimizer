@@ -8,8 +8,8 @@ from duffel_api import Duffel
 DUFFEL_TOKEN = os.environ.get("DUFFEL_TOKEN")
 ORIGIN = os.environ.get("ORIGIN", "IAD")
 DESTINATION = os.environ.get("DESTINATION", "SEZ")
-START_SEARCH = datetime.strptime(os.environ.get("START_DATE", "2026-06-01"), "%Y-%m-%d").date()
-END_SEARCH = datetime.strptime(os.environ.get("END_DATE", "2026-08-01"), "%Y-%m-%d").date()
+START_SEARCH = datetime.strptime(os.environ.get("START_DATE", "2026-09-01"), "%Y-%m-%d").date()
+END_SEARCH = datetime.strptime(os.environ.get("END_DATE", "2026-09-10"), "%Y-%m-%d").date()
 MIN_STAY = int(os.environ.get("MIN_STAY", 7))
 MAX_STAY = int(os.environ.get("MAX_STAY", 10))
 # 0 = Direct/Non-stop only, 1 = Up to 1-stop, 2 = Up to 2-stops
