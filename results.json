@@ -1,12 +1,10 @@
 {
-  "last_updated": "2026-07-29 03:36:02 UTC",
+  "last_updated": "2026-07-29 17:42:58 UTC",
   "params": {
     "origin": "IAD",
     "destination": "SEZ",
-    "start": "2026-09-01",
-    "end": "2026-12-01",
-    "min_stay": 7,
-    "max_stay": 10
+    "start_date": "2026-09-01",
+    "end_date": "2026-12-01"
   },
   "offers": []
 }
