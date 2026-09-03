@@ -79,48 +79,58 @@ for outbound_date, return_date, nights in date_pairs:
         offers = res_data.get("offers", [])
 
         for offer in offers:
-            slices = offer.get("slices", [])
-            outbound_details = []
-            inbound_details = []
+    slices = offer.get("slices", [])
+    
+    outbound_segments = slices[0].get("segments", []) if len(slices) >= 1 else []
+    inbound_segments = slices[1].get("segments", []) if len(slices) >= 2 else []
 
-            # Parse Outbound Segments
-            if len(slices) >= 1:
-                for seg in slices[0].get("segments", []):
-                    f_num = seg.get("operating_carrier_flight_number") or seg.get("marketing_carrier_flight_number") or ""
-                    carrier = seg.get("operating_carrier", {}).get("iata_code") or seg.get("marketing_carrier", {}).get("iata_code") or ""
-                    dep = seg.get("departing_at", "")[11:16] # Format HH:MM
-                    arr = seg.get("arriving_at", "")[11:16]
-                    outbound_details.append(f"{carrier}{f_num} ({dep}–{arr})")
+    # Accurate calculation of stops based on segments
+    out_stops = max(0, len(outbound_segments) - 1) + sum(len(s.get("stops", [])) for s in outbound_segments)
+    in_stops = max(0, len(inbound_segments) - 1) + sum(len(s.get("stops", [])) for s in inbound_segments)
+    max_journey_stops = max(out_stops, in_stops)
 
-            # Parse Inbound Segments
-            if len(slices) >= 2:
-                for seg in slices[1].get("segments", []):
-                    f_num = seg.get("operating_carrier_flight_number") or seg.get("marketing_carrier_flight_number") or ""
-                    carrier = seg.get("operating_carrier", {}).get("iata_code") or seg.get("marketing_carrier", {}).get("iata_code") or ""
-                    dep = seg.get("departing_at", "")[11:16]
-                    arr = seg.get("arriving_at", "")[11:16]
-                    inbound_details.append(f"{carrier}{f_num} ({dep}–{arr})")
+    if max_journey_stops <= max_connections:
+        # Build Outbound Segment Chain (Leg 1)
+        out_flights = []
+        for seg in outbound_segments:
+            # Read exact origin and destination for THIS specific segment
+            seg_origin = seg.get("origin", {}).get("iata_code", "")
+            seg_dest = seg.get("destination", {}).get("iata_code", "")
+            
+            carrier = seg.get("operating_carrier", {}).get("iata_code") or seg.get("marketing_carrier", {}).get("iata_code") or ""
+            f_num = seg.get("operating_carrier_flight_number") or seg.get("marketing_carrier_flight_number") or ""
+            dep_time = seg.get("departing_at", "")[11:16]
+            arr_time = seg.get("arriving_at", "")[11:16]
+            
+            out_flights.append(f"{carrier}{f_num} [{seg_origin} {dep_time} ➔ {seg_dest} {arr_time}]")
 
-            # Calculate Stops
-            out_stops = max(0, len(slices[0].get("segments", [])) - 1) if len(slices) >= 1 else 0
-            in_stops = max(0, len(slices[1].get("segments", [])) - 1) if len(slices) >= 2 else 0
-            max_journey_stops = max(out_stops, in_stops)
+        # Build Inbound Segment Chain (Leg 2)
+        in_flights = []
+        for seg in inbound_segments:
+            seg_origin = seg.get("origin", {}).get("iata_code", "")
+            seg_dest = seg.get("destination", {}).get("iata_code", "")
+            
+            carrier = seg.get("operating_carrier", {}).get("iata_code") or seg.get("marketing_carrier", {}).get("iata_code") or ""
+            f_num = seg.get("operating_carrier_flight_number") or seg.get("marketing_carrier_flight_number") or ""
+            dep_time = seg.get("departing_at", "")[11:16]
+            arr_time = seg.get("arriving_at", "")[11:16]
+            
+            in_flights.append(f"{carrier}{f_num} [{seg_origin} {dep_time} ➔ {seg_dest} {arr_time}]")
 
-            if max_journey_stops <= max_connections:
-                owner = offer.get("owner", {})
-                airline_name = owner.get("name") if owner else "Multiple Airlines"
+        owner = offer.get("owner", {})
+        airline_name = owner.get("name") if owner else "Multiple Airlines"
 
-                all_offers.append({
-                    "price": float(offer.get("total_amount", 0)),
-                    "currency": offer.get("total_currency", "USD"),
-                    "outbound": outbound_date,
-                    "inbound": return_date,
-                    "nights": nights,
-                    "stops": "Non-stop" if max_journey_stops == 0 else f"{max_journey_stops}-stop",
-                    "airline": airline_name,
-                    "outbound_flights": " ➔ ".join(outbound_details),
-                    "inbound_flights": " ➔ ".join(inbound_details)
-                })
+        all_offers.append({
+            "price": float(offer.get("total_amount", 0)),
+            "currency": offer.get("total_currency", "USD"),
+            "outbound": outbound_date,
+            "inbound": return_date,
+            "nights": nights,
+            "stops": "Non-stop" if max_journey_stops == 0 else f"{max_journey_stops}-stop",
+            "airline": airline_name,
+            "outbound_route": " ➔ ".join(out_flights),
+            "inbound_route": " ➔ ".join(in_flights)
+        })
         
         # Be mindful of rate limits
         time.sleep(0.5)
