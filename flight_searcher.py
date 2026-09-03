@@ -48,8 +48,8 @@ print(f"Generated {len(date_pairs)} date combinations to query.")
 passengers_payload = [
     {"type": "adult"},
     {"type": "adult"},
-    {"type": "child", "age": 5},
-    {"type": "child", "age": 8}
+    {"type": "child"},
+    {"type": "child"}
 ]
 
 all_offers = []
