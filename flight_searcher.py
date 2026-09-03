@@ -56,58 +56,49 @@ all_offers = []
 url = "https://api.duffel.com/air/offer_requests"
 
 # 5. Query Duffel REST Endpoint Directly
-for outbound_date, return_date, nights in date_pairs:
-    payload = {
-        "data": {
-            "slices": [
-                {
-                    "origin": origin,
-                    "destination": destination,
-                    "departure_date": outbound_date
-                },
-                {
-                    "origin": destination,
-                    "destination": origin,
-                    "departure_date": return_date
-                }
-            ],
-            "passengers": passengers_payload,
-            "cabin_class": "economy"
-        }
-    }
+for offer in offers:
+    slices = offer.get("slices", [])
+    outbound_details = []
+    inbound_details = []
 
-    try:
-        response = requests.post(url, headers=headers, json=payload)
-        
-        if response.status_code == 201:
-            data = response.json().get("data", {})
-            offers = data.get("offers", [])
-            
-            for offer in offers:
-                # Determine max connections across outbound and inbound legs
-                max_stops = max(len(slice_item.get("segments", [])) - 1 for slice_item in offer.get("slices", []))
-                
-                if max_stops <= max_connections:
-                    owner = offer.get("owner", {})
-                    airline_name = owner.get("name") if owner else "Multiple Airlines"
-                    
-                    all_offers.append({
-                        "price": float(offer.get("total_amount", 0)),
-                        "currency": offer.get("total_currency", "USD"),
-                        "outbound": outbound_date,
-                        "inbound": return_date,
-                        "nights": nights,
-                        "stops": "Non-stop" if max_stops == 0 else f"{max_stops}-stop",
-                        "airline": airline_name
-                    })
-        else:
-            print(f"Duffel API Error {response.status_code} for {outbound_date}: {response.text}")
+    # Parse Outbound Segments
+    if len(slices) >= 1:
+        for seg in slices[0].get("segments", []):
+            f_num = seg.get("operating_carrier_flight_number") or seg.get("marketing_carrier_flight_number") or ""
+            carrier = seg.get("operating_carrier", {}).get("iata_code") or seg.get("marketing_carrier", {}).get("iata_code") or ""
+            dep = seg.get("departing_at", "")[11:16] # Format HH:MM
+            arr = seg.get("arriving_at", "")[11:16]
+            outbound_details.append(f"{carrier}{f_num} ({dep}–{arr})")
 
-        # Sleep briefly to avoid hitting Duffel's request rate limit
-        time.sleep(0.15)
+    # Parse Inbound Segments
+    if len(slices) >= 2:
+        for seg in slices[1].get("segments", []):
+            f_num = seg.get("operating_carrier_flight_number") or seg.get("marketing_carrier_flight_number") or ""
+            carrier = seg.get("operating_carrier", {}).get("iata_code") or seg.get("marketing_carrier", {}).get("iata_code") or ""
+            dep = seg.get("departing_at", "")[11:16]
+            arr = seg.get("arriving_at", "")[11:16]
+            inbound_details.append(f"{carrier}{f_num} ({dep}–{arr})")
 
-    except Exception as e:
-        print(f"Request failed for {outbound_date} to {return_date}: {e}")
+    # Calculate Stops
+    out_stops = max(0, len(slices[0].get("segments", [])) - 1) if len(slices) >= 1 else 0
+    in_stops = max(0, len(slices[1].get("segments", [])) - 1) if len(slices) >= 2 else 0
+    max_journey_stops = max(out_stops, in_stops)
+
+    if max_journey_stops <= max_connections:
+        owner = offer.get("owner", {})
+        airline_name = owner.get("name") if owner else "Multiple Airlines"
+
+        all_offers.append({
+            "price": float(offer.get("total_amount", 0)),
+            "currency": offer.get("total_currency", "USD"),
+            "outbound": outbound_date,
+            "inbound": return_date,
+            "nights": nights,
+            "stops": "Non-stop" if max_journey_stops == 0 else f"{max_journey_stops}-stop",
+            "airline": airline_name,
+            "outbound_flights": " ➔ ".join(outbound_details),
+            "inbound_flights": " ➔ ".join(inbound_details)
+        })
 
 # 6. Sort & Write Results
 all_offers.sort(key=lambda x: x["price"])
