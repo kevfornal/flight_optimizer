@@ -175,6 +175,7 @@
 
         // Render flight matrix rows
         if (tbody) {
+            // Inside loadResults() where the table rows are appended:
             tbody.innerHTML = '';
             data.offers.forEach(item => {
                 const tr = document.createElement('tr');
@@ -182,14 +183,21 @@
                 
                 tr.innerHTML = `
                     <td><strong>$${Number(item.price).toFixed(2)} ${item.currency || 'USD'}</strong></td>
-                    <td>${item.outbound}</td>
-                    <td>${item.inbound}</td>
+                    <td>
+                        <div><strong>${item.outbound}</strong></div>
+                        <div style="font-size: 0.75rem; color: #64748b;">${item.outbound_flights || ''}</div>
+                    </td>
+                    <td>
+                        <div><strong>${item.inbound}</strong></div>
+                        <div style="font-size: 0.75rem; color: #64748b;">${item.inbound_flights || ''}</div>
+                    </td>
                     <td>${item.nights}</td>
                     <td><span class="tag ${stopClass}">${item.stops}</span></td>
                     <td>${item.airline}</td>
                 `;
                 tbody.appendChild(tr);
             });
+        
         }
     } catch (e) {
         console.error("Load Error:", e);
