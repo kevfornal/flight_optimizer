@@ -217,7 +217,8 @@ if (document.readyState === 'loading') {
 
 <!--Easter Egg trigger-->
 <script>
-    (function(){
+    // Waits for the entire page to finish loading first
+    window.addEventListener('DOMContentLoaded', () => {
         let type = "";
         const secret = "egg"; // Change this to whatever word you want
 
@@ -227,7 +228,10 @@ if (document.readyState === 'loading') {
 
             if (typed === secret) {
                 const target = document.getElementById("ghp code");
-                if(target) target.style.display = "block";
+                if(target) {
+                    // Removes the forced hidden state and shows the text
+                    target.style.setProperty('display', 'block', 'important');
+                }
             }
         });
     })();
