@@ -7,9 +7,9 @@ from datetime import datetime, timedelta
 # 1. Load Environment Variables from GitHub Actions
 DUFFEL_TOKEN = os.environ.get("DUFFEL_TOKEN")
 origin = os.environ.get("ORIGIN", "IAD")
-destination = os.environ.get("DESTINATION", "SEZ")
-start_date_str = os.environ.get("START_DATE", "2026-09-01")
-end_date_str = os.environ.get("END_DATE", "2026-11-01")
+destination = os.environ.get("DESTINATION", "MRU")
+start_date_str = os.environ.get("START_DATE", "2026-10-23")
+end_date_str = os.environ.get("END_DATE", "2026-12-20")
 min_stay = int(os.environ.get("MIN_STAY", "7"))
 max_stay = int(os.environ.get("MAX_STAY", "10"))
 max_connections = int(os.environ.get("MAX_CONNECTIONS", "2"))
@@ -48,57 +48,85 @@ print(f"Generated {len(date_pairs)} date combinations to query.")
 passengers_payload = [
     {"type": "adult"},
     {"type": "adult"},
-    {"type": "child"},
-    {"type": "child"}
+    {"type": "child", "age": 5},
+    {"type": "child", "age": 8}
 ]
 
 all_offers = []
 url = "https://api.duffel.com/air/offer_requests"
 
-# 5. Query Duffel REST Endpoint Directly
-for offer in offers:
-    slices = offer.get("slices", [])
-    outbound_details = []
-    inbound_details = []
+# 5. Query Duffel REST Endpoint Directly for each Date Pair
+for outbound_date, return_date, nights in date_pairs:
+    payload = {
+        "data": {
+            "slices": [
+                {"origin": origin, "destination": destination, "departure_date": outbound_date},
+                {"origin": destination, "destination": origin, "departure_date": return_date}
+            ],
+            "passengers": passengers_payload,
+            "cabin_class": "economy",
+            "max_connections": max_connections
+        }
+    }
 
-    # Parse Outbound Segments
-    if len(slices) >= 1:
-        for seg in slices[0].get("segments", []):
-            f_num = seg.get("operating_carrier_flight_number") or seg.get("marketing_carrier_flight_number") or ""
-            carrier = seg.get("operating_carrier", {}).get("iata_code") or seg.get("marketing_carrier", {}).get("iata_code") or ""
-            dep = seg.get("departing_at", "")[11:16] # Format HH:MM
-            arr = seg.get("arriving_at", "")[11:16]
-            outbound_details.append(f"{carrier}{f_num} ({dep}–{arr})")
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        if response.status_code != 201:
+            print(f"Error querying {outbound_date} to {return_date}: {response.text}")
+            continue
 
-    # Parse Inbound Segments
-    if len(slices) >= 2:
-        for seg in slices[1].get("segments", []):
-            f_num = seg.get("operating_carrier_flight_number") or seg.get("marketing_carrier_flight_number") or ""
-            carrier = seg.get("operating_carrier", {}).get("iata_code") or seg.get("marketing_carrier", {}).get("iata_code") or ""
-            dep = seg.get("departing_at", "")[11:16]
-            arr = seg.get("arriving_at", "")[11:16]
-            inbound_details.append(f"{carrier}{f_num} ({dep}–{arr})")
+        res_data = response.json().get("data", {})
+        offers = res_data.get("offers", [])
 
-    # Calculate Stops
-    out_stops = max(0, len(slices[0].get("segments", [])) - 1) if len(slices) >= 1 else 0
-    in_stops = max(0, len(slices[1].get("segments", [])) - 1) if len(slices) >= 2 else 0
-    max_journey_stops = max(out_stops, in_stops)
+        for offer in offers:
+            slices = offer.get("slices", [])
+            outbound_details = []
+            inbound_details = []
 
-    if max_journey_stops <= max_connections:
-        owner = offer.get("owner", {})
-        airline_name = owner.get("name") if owner else "Multiple Airlines"
+            # Parse Outbound Segments
+            if len(slices) >= 1:
+                for seg in slices[0].get("segments", []):
+                    f_num = seg.get("operating_carrier_flight_number") or seg.get("marketing_carrier_flight_number") or ""
+                    carrier = seg.get("operating_carrier", {}).get("iata_code") or seg.get("marketing_carrier", {}).get("iata_code") or ""
+                    dep = seg.get("departing_at", "")[11:16] # Format HH:MM
+                    arr = seg.get("arriving_at", "")[11:16]
+                    outbound_details.append(f"{carrier}{f_num} ({dep}–{arr})")
 
-        all_offers.append({
-            "price": float(offer.get("total_amount", 0)),
-            "currency": offer.get("total_currency", "USD"),
-            "outbound": outbound_date,
-            "inbound": return_date,
-            "nights": nights,
-            "stops": "Non-stop" if max_journey_stops == 0 else f"{max_journey_stops}-stop",
-            "airline": airline_name,
-            "outbound_flights": " ➔ ".join(outbound_details),
-            "inbound_flights": " ➔ ".join(inbound_details)
-        })
+            # Parse Inbound Segments
+            if len(slices) >= 2:
+                for seg in slices[1].get("segments", []):
+                    f_num = seg.get("operating_carrier_flight_number") or seg.get("marketing_carrier_flight_number") or ""
+                    carrier = seg.get("operating_carrier", {}).get("iata_code") or seg.get("marketing_carrier", {}).get("iata_code") or ""
+                    dep = seg.get("departing_at", "")[11:16]
+                    arr = seg.get("arriving_at", "")[11:16]
+                    inbound_details.append(f"{carrier}{f_num} ({dep}–{arr})")
+
+            # Calculate Stops
+            out_stops = max(0, len(slices[0].get("segments", [])) - 1) if len(slices) >= 1 else 0
+            in_stops = max(0, len(slices[1].get("segments", [])) - 1) if len(slices) >= 2 else 0
+            max_journey_stops = max(out_stops, in_stops)
+
+            if max_journey_stops <= max_connections:
+                owner = offer.get("owner", {})
+                airline_name = owner.get("name") if owner else "Multiple Airlines"
+
+                all_offers.append({
+                    "price": float(offer.get("total_amount", 0)),
+                    "currency": offer.get("total_currency", "USD"),
+                    "outbound": outbound_date,
+                    "inbound": return_date,
+                    "nights": nights,
+                    "stops": "Non-stop" if max_journey_stops == 0 else f"{max_journey_stops}-stop",
+                    "airline": airline_name,
+                    "outbound_flights": " ➔ ".join(outbound_details),
+                    "inbound_flights": " ➔ ".join(inbound_details)
+                })
+        
+        # Be mindful of rate limits
+        time.sleep(0.5)
+
+    except Exception as e:
+        print(f"Exception encountered for {outbound_date} -> {return_date}: {e}")
 
 # 6. Sort & Write Results
 all_offers.sort(key=lambda x: x["price"])
